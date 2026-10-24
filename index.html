@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ことばクロスワード</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 7x7 grid with a live clue banner above it; clue lists beside it on wide screens, stacked below on phones.
+   Color: ai (indigo) accent on a cool paper ground; ink-black blocks. Type: Shippori Mincho for the title, Zen Kaku Gothic New for everything else. */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --ink:#1b2330; --muted:#586577; --line:#c4cdd9;
+  --accent:#2c4a8c; --accent-ink:#ffffff; --slot:#dbe5f7; --sel:#a9bfe8; --block:#1b2330;
+  --bad:#b3261e; --bad-bg:#fbdedb; --ok:#1d7448;
+  --f-display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161d; --surface:#1a212b; --ink:#e7ecf3; --muted:#9aa6b6; --line:#3a4553;
+  --accent:#9bb7f5; --accent-ink:#0f1624; --slot:#24344f; --sel:#3d5a93; --block:#06080c;
+  --bad:#ff9a92; --bad-bg:#4a2523; --ok:#74d9a3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161d; --surface:#1a212b; --ink:#e7ecf3; --muted:#9aa6b6; --line:#3a4553;
+  --accent:#9bb7f5; --accent-ink:#0f1624; --slot:#24344f; --sel:#3d5a93; --block:#06080c;
+  --bad:#ff9a92; --bad-bg:#4a2523; --ok:#74d9a3; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{color-scheme:light}
+body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;
+  padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:960px;margin-inline:auto}
+header h1{font-family:var(--f-display);font-weight:800;font-size:28px;line-height:1.25;margin:0 0 4px;letter-spacing:.04em;text-wrap:balance}
+header p{margin:0;color:var(--muted);font-size:13px}
+.rules{margin:14px 0 18px;padding:10px 14px;border-left:3px solid var(--accent);background:var(--surface);font-size:13px;color:var(--ink)}
+.rules ul{margin:0;padding-left:1.2em}
+.rules li+li{margin-top:2px}
+
+.main{display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:820px){.main{grid-template-columns:minmax(0,460px) minmax(0,1fr);align-items:start}.board{position:sticky;top:16px}}
+
+.board{--gw:min(100%,460px)}
+.now{min-height:3.4em;display:flex;gap:10px;align-items:baseline;padding:8px 12px;margin-bottom:10px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.now b{font-family:var(--f-display);font-size:17px;color:var(--accent);white-space:nowrap}
+.now span{min-width:0;font-size:14px}
+.gridbox{position:relative;width:var(--gw);aspect-ratio:1;--cs:calc(min(100vw - 32px,460px)/7)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(7,1fr);width:100%;height:100%;gap:2px;background:var(--line);border:2px solid var(--line);border-radius:4px;overflow:hidden}
+.cell{position:relative;background:var(--surface);display:flex;align-items:center;justify-content:center;
+  font-size:clamp(18px,calc(var(--cs)*.56),30px);font-weight:500;user-select:none;-webkit-user-select:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.cell.block{background:var(--block);cursor:default}
+.cell.inslot{background:var(--slot)}
+.cell.sel{background:var(--sel)}
+.cell.wrong{background:var(--bad-bg);color:var(--bad)}
+.cell .n{position:absolute;top:2px;left:4px;font-size:clamp(9px,calc(var(--cs)*.2),12px);line-height:1;color:var(--muted);font-weight:700}
+.kb{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;font-size:16px;background:transparent;color:transparent}
+
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button.t{font:inherit;font-size:14px;font-weight:500;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button.t:hover{border-color:var(--accent)}
+button.t.arm{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+button:focus-visible,.cl li:focus-visible,.kb:focus-visible+.grid{outline:2px solid var(--accent);outline-offset:2px}
+.msg{min-height:1.6em;margin-top:10px;font-size:14px;font-weight:700}
+.msg.ok{color:var(--ok)}.msg.ng{color:var(--bad)}
+
+.clues{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:520px) and (max-width:819px){.clues{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cl h2{font-family:var(--f-display);font-size:16px;margin:0 0 6px;padding-bottom:4px;border-bottom:2px solid var(--ink);letter-spacing:.2em}
+.cl ol{list-style:none;margin:0;padding:0}
+.cl li{display:grid;grid-template-columns:2.2em minmax(0,1fr);gap:6px;padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:4px}
+.cl li .k{font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.cl li .len{color:var(--muted);font-size:12px;white-space:nowrap}
+.cl li.act{background:var(--slot)}
+.cl li.filled .k::after{content:"・";color:var(--ok)}
+footer{margin-top:28px;font-size:12px;color:var(--muted)}
+footer a{color:inherit}
+@media (prefers-reduced-motion:no-preference){.cell{transition:background .12s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ことばクロスワード</h1>
+    <p>7×7 ・ 全14問 ・ 試作版</p>
+  </header>
+
+  <div class="rules">
+    <ul>
+      <li>カギを読んで、白いマスにひらがなで入れます。同じ言葉は一度しか使いません。</li>
+      <li>「ゃ ゅ ょ っ」は大きい「や ゆ よ つ」で入れます（例: 序盤 → じよばん）。</li>
+      <li>マスをタップすると入力できます。もう一度タップするとタテ・ヨコが切り替わります。</li>
+    </ul>
+  </div>
+
+  <div class="main">
+    <section class="board" aria-label="盤面">
+      <div class="now" id="now" aria-live="polite"></div>
+      <div class="gridbox">
+        <input class="kb" id="kb" type="text" inputmode="text" lang="ja" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="文字入力">
+        <div class="grid" id="grid" role="grid"></div>
+      </div>
+      <div class="tools">
+        <button class="t" id="b-hint" type="button">1マスのヒント</button>
+        <button class="t" id="b-check" type="button">答え合わせ</button>
+        <button class="t" id="b-clear" type="button">ぜんぶ消す</button>
+        <button class="t" id="b-reveal" type="button">答えを見る</button>
+      </div>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="clues" aria-label="カギ">
+      <div class="cl"><h2>ヨコのカギ</h2><ol id="clA"></ol></div>
+      <div class="cl"><h2>タテのカギ</h2><ol id="clD"></ol></div>
+    </section>
+  </div>
+
+  <footer>語彙の選定に JMdict / EDICT（© Electronic Dictionary Research and Development Group, CC BY-SA 4.0）を使用しています。</footer>
+</div>
+
+<script>
+(function(){
+  var N=7, BL='■';
+  var G=["こおり■し■ま","■ち■じよばん","げつしゆう■が","■きゆうそく■","み■しよくにん","ないよう■ぐ■","と■う■たにん"];
+  var CLUES={
+    A1:"水がカチカチに固まったもの。冷凍庫でつくれる",
+    A5:"勝負や試合の始めのほうの段階。「中盤」「終盤」の前",
+    A6:"ひと月あたりの収入。「年収」のひと月ぶん",
+    A8:"進み方がとても速いようす。「○○に普及する」",
+    A11:"長年きたえた腕前でものをつくる人。大工や左官など",
+    A12:"文章や話の中身。本の○○を要約する",
+    A13:"自分以外の人。「赤の○○」",
+    D2:"あわてず、心が静かで安定しているようす。「○○のある人」",
+    D3:"人の無事や居場所についての知らせ。「○○不明」",
+    D4:"コマ割りで物語をえがいた絵。週刊誌に連載される",
+    D5:"とても大切なこと。「○○な点を押さえる」",
+    D7:"運動部のチームをまとめるキャプテン",
+    D9:"たくさんの国。「アジアの○○」",
+    D10:"船が出入りし、荷物の積み下ろしをする海辺の場所。横浜や神戸など"
+  };
+  var KEY='kotoba-cw-v1';
+  var SMALL={'ゃ':'や','ゅ':'ゆ','ょ':'よ','っ':'つ','ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お','ゎ':'わ'};
+
+  function isB(r,c){return G[r].charAt(c)===BL}
+  /* slots and numbering */
+  var slots=[], num={}, n=0, cs=[]; // cs[r][c]={A:idx,D:idx}
+  for(var r=0;r<N;r++){cs.push([]);for(var c=0;c<N;c++)cs[r].push({A:-1,D:-1})}
+  function add(dir,r,c,len){
+    var cells=[];for(var i=0;i<len;i++)cells.push(dir==='A'?[r,c+i]:[r+i,c]);
+    slots.push({dir:dir,r:r,c:c,len:len,cells:cells});
+    var ix=slots.length-1;cells.forEach(function(p){cs[p[0]][p[1]][dir]=ix});
+  }
+  for(var r=0;r<N;r++){var c=0;while(c<N){if(isB(r,c)){c++;continue}var s=c;while(c<N&&!isB(r,c))c++;if(c-s>=2)add('A',r,s,c-s)}}
+  for(var c=0;c<N;c++){var r=0;while(r<N){if(isB(r,c)){r++;continue}var s=r;while(r<N&&!isB(r,c))r++;if(r-s>=2)add('D',s,c,r-s)}}
+  for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+    var st=slots.some(function(s){return s.r===r&&s.c===c});
+    if(st){n++;num[r+','+c]=n}
+  }
+  slots.forEach(function(s){s.num=num[s.r+','+s.c];s.clue=CLUES[s.dir+s.num]||''});
+
+  var user=[];for(var r=0;r<N;r++){user.push([]);for(var c=0;c<N;c++)user[r].push('')}
+  try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv&&sv.length===N)user=sv}catch(e){}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(user))}catch(e){}}
+
+  var sel={r:0,c:0,dir:'A'}, wrong={}, checking=false;
+  var $=function(id){return document.getElementById(id)};
+  var gridEl=$('grid'), kb=$('kb'), nowEl=$('now'), msgEl=$('msg');
+
+  /* build grid */
+  var cellEls=[];
+  for(var r=0;r<N;r++){cellEls.push([]);for(var c=0;c<N;c++){
+    var d=document.createElement('div');d.className='cell'+(isB(r,c)?' block':'');d.setAttribute('role','gridcell');
+    if(!isB(r,c)){
+      d.setAttribute('data-r',r);d.setAttribute('data-c',c);
+      if(num[r+','+c]){var nn=document.createElement('span');nn.className='n';nn.textContent=num[r+','+c];d.appendChild(nn)}
+      var t=document.createElement('span');t.className='ch';d.appendChild(t);
+    }
+    gridEl.appendChild(d);cellEls[r].push(d);
+  }}
+
+  /* build clue lists */
+  var liEls={};
+  slots.slice().sort(function(a,b){return a.num-b.num}).forEach(function(s){
+    var li=document.createElement('li');li.tabIndex=0;
+    li.innerHTML='<span class="k">'+s.num+'</span><span>'+s.clue+' <span class="len">（'+s.len+'字）</span></span>';
+    var ix=slots.indexOf(s);
+    li.addEventListener('click',function(){selectSlot(ix)});
+    li.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();selectSlot(ix)}});
+    $('cl'+s.dir).appendChild(li);liEls[ix]=li;
+  });
+
+  function curSlot(){var i=cs[sel.r][sel.c][sel.dir];return i<0?null:slots[i]}
+  function selectSlot(ix){
+    var s=slots[ix],target=s.cells[0];
+    for(var i=0;i<s.cells.length;i++){var p=s.cells[i];if(!user[p[0]][p[1]]){target=p;break}}
+    sel={r:target[0],c:target[1],dir:s.dir};wrong={};checking=false;render();focusKb();
+  }
+  function focusKb(){try{kb.focus({preventScroll:true})}catch(e){}}
+
+  function render(){
+    var cur=curSlot(),inSlot={};
+    if(cur)cur.cells.forEach(function(p){inSlot[p[0]+','+p[1]]=1});
+    for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+      if(isB(r,c))continue;
+      var el=cellEls[r][c],k=r+','+c;
+      el.className='cell'+(inSlot[k]?' inslot':'')+((sel.r===r&&sel.c===c)?' sel':'')+(wrong[k]?' wrong':'');
+      el.querySelector('.ch').textContent=user[r][c];
+    }
+    nowEl.innerHTML=cur?'<b>'+(cur.dir==='A'?'ヨコ':'タテ')+cur.num+'</b><span>'+cur.clue+'（'+cur.len+'字）</span>':'<span>マスを選んでください</span>';
+    slots.forEach(function(s,ix){
+      var li=liEls[ix];var full=s.cells.every(function(p){return user[p[0]][p[1]]});
+      li.className=(s===cur?'act ':'')+(full?'filled':'');
+    });
+    var act=liEls[cs[sel.r][sel.c][sel.dir]];
+    if(act&&act.scrollIntoView&&window.innerWidth>=820){try{act.scrollIntoView({block:'nearest'})}catch(e){}}
+  }
+
+  function say(t,cls){msgEl.textContent=t;msgEl.className='msg '+(cls||'')}
+
+  /* selection by tap */
+  gridEl.addEventListener('click',function(e){
+    var el=e.target.closest('.cell');if(!el||el.classList.contains('block'))return;
+    var r=+el.getAttribute('data-r'),c=+el.getAttribute('data-c');
+    var o=cs[r][c];
+    if(sel.r===r&&sel.c===c){var other=sel.dir==='A'?'D':'A';if(o[other]>=0)sel.dir=other}
+    else{sel.r=r;sel.c=c;if(o[sel.dir]<0)sel.dir=sel.dir==='A'?'D':'A'}
+    wrong={};checking=false;say('');render();focusKb();
+  });
+
+  /* input */
+  function toHira(s){return s.replace(/[ァ-ヶ]/g,function(ch){return String.fromCharCode(ch.charCodeAt(0)-0x60)})}
+  function advance(){
+    var s=curSlot();if(!s)return;
+    for(var i=0;i<s.cells.length;i++){var p=s.cells[i];if(p[0]===sel.r&&p[1]===sel.c){if(i<s.cells.length-1){sel.r=s.cells[i+1][0];sel.c=s.cells[i+1][1]}return}}
+  }
+  function back(){
+    var s=curSlot();if(!s)return;
+    for(var i=0;i<s.cells.length;i++){var p=s.cells[i];if(p[0]===sel.r&&p[1]===sel.c){if(i>0){sel.r=s.cells[i-1][0];sel.c=s.cells[i-1][1]}return}}
+  }
+  function put(text){
+    var t=toHira(text.normalize('NFC')),any=false;
+    for(var i=0;i<t.length;i++){
+      var ch=t.charAt(i);if(!/[ぁ-ゖー]/.test(ch))continue;
+      ch=SMALL[ch]||ch;user[sel.r][sel.c]=ch;delete wrong[sel.r+','+sel.c];any=true;advance();
+    }
+    if(any){save();say('');render();checkDone()}
+  }
+  function flush(){var v=kb.value;kb.value='';if(v)put(v)}
+  kb.addEventListener('compositionend',function(){setTimeout(flush,0)});
+  kb.addEventListener('input',function(e){if(e.isComposing)return;flush()});
+  kb.addEventListener('keydown',function(e){
+    if(e.isComposing||e.keyCode===229)return;
+    var k=e.key,dr=0,dc=0;
+    if(k==='ArrowUp')dr=-1;else if(k==='ArrowDown')dr=1;else if(k==='ArrowLeft')dc=-1;else if(k==='ArrowRight')dc=1;
+    if(dr||dc){
+      e.preventDefault();
+      var nr=sel.r+dr,nc=sel.c+dc;
+      while(nr>=0&&nr<N&&nc>=0&&nc<N&&isB(nr,nc)){nr+=dr;nc+=dc}
+      if(nr>=0&&nr<N&&nc>=0&&nc<N){
+        sel.r=nr;sel.c=nc;
+        var want=dr?'D':'A';if(cs[nr][nc][want]>=0)sel.dir=want;else if(cs[nr][nc][sel.dir]<0)sel.dir=sel.dir==='A'?'D':'A';
+        render();
+      }
+    }else if(k==='Backspace'||k==='Delete'){
+      e.preventDefault();
+      var had=user[sel.r][sel.c];
+      user[sel.r][sel.c]='';
+      if(!had&&k==='Backspace'){back();user[sel.r][sel.c]=''}
+      delete wrong[sel.r+','+sel.c];save();render();
+    }else if(k==='Tab'){
+      e.preventDefault();
+      var cur=cs[sel.r][sel.c][sel.dir],ix=(cur+(e.shiftKey?-1:1)+slots.length)%slots.length;selectSlot(ix);
+    }
+  });
+
+  function allOK(){for(var r=0;r<N;r++)for(var c=0;c<N;c++)if(!isB(r,c)&&user[r][c]!==G[r].charAt(c))return false;return true}
+  function allFull(){for(var r=0;r<N;r++)for(var c=0;c<N;c++)if(!isB(r,c)&&!user[r][c])return false;return true}
+  function checkDone(){
+    if(allOK())say('完成です。すべて正解です。','ok');
+    else if(allFull())say('すべて埋まりました。「答え合わせ」で間違いを確認できます。','');
+  }
+
+  /* tools */
+  $('b-hint').addEventListener('click',function(){
+    var r=sel.r,c=sel.c;user[r][c]=G[r].charAt(c);delete wrong[r+','+c];save();advance();render();checkDone();focusKb();
+  });
+  $('b-check').addEventListener('click',function(){
+    wrong={};var bad=0,empty=0;
+    for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+      if(isB(r,c))continue;
+      if(!user[r][c])empty++;else if(user[r][c]!==G[r].charAt(c)){wrong[r+','+c]=1;bad++}
+    }
+    render();
+    if(bad)say('間違いが'+bad+'マスあります（赤いマス）。','ng');
+    else if(empty)say('ここまでは合っています。あと'+empty+'マスです。','ok');
+    else say('完成です。すべて正解です。','ok');
+  });
+  function armed(id,label,armLabel,fn){
+    var b=$(id),timer=null;
+    b.addEventListener('click',function(){
+      if(b.classList.contains('arm')){clearTimeout(timer);b.classList.remove('arm');b.textContent=label;fn();return}
+      b.classList.add('arm');b.textContent=armLabel;
+      timer=setTimeout(function(){b.classList.remove('arm');b.textContent=label},3000);
+    });
+  }
+  armed('b-clear','ぜんぶ消す','もう一度で消す',function(){
+    for(var r=0;r<N;r++)for(var c=0;c<N;c++)user[r][c]='';wrong={};save();say('');render();
+  });
+  armed('b-reveal','答えを見る','もう一度で表示',function(){
+    for(var r=0;r<N;r++)for(var c=0;c<N;c++)if(!isB(r,c))user[r][c]=G[r].charAt(c);wrong={};save();say('答えを表示しました。','');render();
+  });
+
+  /* start on the first clue */
+  selectSlot(cs[0][0].A);
+  nowEl.setAttribute('data-ready','1');
+})();
+</script>
+</body>
+</html>
